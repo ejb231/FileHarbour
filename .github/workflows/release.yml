@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: SyncCore-windows
+            archive: SyncCore-windows.zip
+            package_cmd: Compress-Archive -Path dist\SyncCore\* -DestinationPath SyncCore-windows.zip
+            shell: pwsh
+          - os: ubuntu-latest
+            artifact: SyncCore-linux
+            archive: SyncCore-linux.tar.gz
+            package_cmd: cd dist && tar czf ../SyncCore-linux.tar.gz SyncCore
+            shell: bash
+          - os: macos-latest
+            artifact: SyncCore-macos
+            archive: SyncCore-macos.tar.gz
+            package_cmd: cd dist && tar czf ../SyncCore-macos.tar.gz SyncCore
+            shell: bash
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller synccore.spec --noconfirm --clean
+
+      - name: Prune bundle
+        shell: python
+        run: |
+          import pathlib
+          import shutil
+
+          dist = pathlib.Path("dist/SyncCore")
+          remove_patterns = [
+              "**/__pycache__",
+              "**/test_*",
+              "**/tests",
+              "**/*.pyc",
+              "**/*.pyo",
+              "**/*.dist-info",
+              "**/*.egg-info",
+              "**/locale",
+              "**/*.pyi",
+              "**/.DS_Store",
+              "**/Thumbs.db",
+          ]
+
+          removed = 0
+          for pattern in remove_patterns:
+              for path in dist.glob(pattern):
+                  if path.is_dir():
+                      shutil.rmtree(path, ignore_errors=True)
+                  elif path.is_file():
+                      path.unlink(missing_ok=True)
+                  removed += 1
+
+          print(f"Pruned {removed} unnecessary items from bundle")
+
+      - name: Package bundle
+        run: ${{ matrix.package_cmd }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Collect archives
+        run: |
+          mkdir -p release
+          find artifacts/ -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/*

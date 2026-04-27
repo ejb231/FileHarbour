@@ -1,0 +1,27 @@
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+
+# Security & Secrets
+.env
+*.pem
+
+# Project Data
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.DS_Store
+
+# Build artifacts
+build/
+dist/
