@@ -1,6 +1,6 @@
 # File Harbour
 
-FileHarbour is a one-way client/server file sync project. A client watches a local folder, queues file changes, and uploads them to a central HTTPS server. The server stores the latest uploaded copy of each file and applies deletes from the client.
+File Harbour is a one-way client/server file sync project. A client watches a local folder, queues file changes, and uploads them to a central HTTPS server. The server stores the latest uploaded copy of each file and applies deletes from the client.
 
 ## What This Version Demonstrates
 
